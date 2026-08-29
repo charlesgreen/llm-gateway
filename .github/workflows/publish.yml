@@ -47,6 +47,9 @@ jobs:
     timeout-minutes: 15
     env:
       CI: "true"
+      # Deliberately EMPTY — see ci.yml for the full reasoning. This job installs
+      # and builds; it never publishes, so it is handed no credential at all.
+      NODE_AUTH_TOKEN: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -74,16 +77,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --trust-lockfile
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # The same single gate CI runs on every PR. A tag does not earn an exemption:
       # never publish an artifact that has not passed its own check (DESIGN.md §4.2
       # step 3). This is also what produces the dist/ handed to the publish job.
       - name: Check (lint + typecheck + test:coverage + build + no-provider-literals)
         run: pnpm check
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Hand the EXACT bytes that passed the no-provider-literals scan over dist/ to
       # the publish job, rather than rebuilding there. Rebuilding would publish an
@@ -122,6 +121,11 @@ jobs:
       contents: read
       # The only elevated scope in this repo, granted to exactly one job.
       packages: write
+    env:
+      # Empty by default so the setup steps (and setup-node's internal `pnpm store
+      # path`) do not warn on the .npmrc substitution. The REAL token is applied at
+      # step scope on the publish step alone — the one step that needs to write.
+      NODE_AUTH_TOKEN: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v6
