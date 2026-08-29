@@ -1,0 +1,62 @@
+{
+  "name": "@charlesgreen/llm-gateway",
+  "version": "0.1.0",
+  "description": "Portable client that routes chat-completions traffic through Cloudflare AI Gateway. Provider choice is configuration, never code.",
+  "type": "module",
+  "sideEffects": false,
+  "license": "UNLICENSED",
+  "private": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.5.2",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/charlesgreen/llm-gateway.git"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage test-results",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "lint:eslint": "eslint .",
+    "lint:fix": "eslint . --fix && prettier --write .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "no-provider-literals": "node scripts/no-provider-literals.mjs src dist README.md",
+    "check": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm no-provider-literals"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260529.1",
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^25.9.1",
+    "@vitest/coverage-v8": "4.1.8",
+    "eslint": "^9.39.4",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.60.1",
+    "vitest": "4.1.8"
+  }
+}

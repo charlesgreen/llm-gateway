@@ -1,0 +1,9 @@
+dist/
+coverage/
+test-results/
+node_modules/
+pnpm-lock.yaml
+
+# The architecture contract, authored before this repo had a formatting gate.
+# Reformatting it would churn a document that is quoted by line elsewhere.
+DESIGN.md
