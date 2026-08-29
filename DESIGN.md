@@ -470,6 +470,21 @@ Emit configuration:
   a future maintainer read `removeComments` as the protection and relax the invariant.
 - `exports` map with `types` **first** in each condition (order is significant to TypeScript's
   resolver), and `"files": ["dist", "src"]`.
+- **`main` + `types` + `typesVersions` alongside the `exports` map — for legacy `moduleResolution`.**
+  A modern resolver (`Bundler`, `node16`, `nodenext`) reads `exports` and ignores these three fields
+  entirely. TypeScript's legacy `moduleResolution: "node"` ignores **`exports`** instead, and falls
+  back to `main`/`types` — which, without these fields, do not exist. The import then fails to
+  typecheck with **TS2307** even though `esbuild`/`wrangler` bundles it perfectly well, because
+  bundlers honour `exports` no matter what `tsconfig` says. A consumer hits a red typecheck against a
+  package that actually works, and the error names nothing that would lead them here.
+  Not hypothetical and not merely legacy: `create-cloudflare` **2.72.3** still emits
+  `"moduleResolution": "node"` in `templates/common/ts/tsconfig.json` and five sibling templates, so a
+  project scaffolded today can land on it. `typesVersions` is the one that carries the **`./testing`
+  subpath** — `main`/`types` cover the root entry only, and under node10 resolution `<pkg>/testing`
+  is otherwise sought as a real directory, which does not exist here. Verified empirically against a
+  real `npm pack` tarball installed into a Pages Functions project: node10 fails without these fields
+  and passes with them, while `Bundler` and `nodenext` pass either way.
+  `"./package.json"` is exported because tooling routinely reads it and a bare `exports` map blocks it.
 
 ```jsonc
 {
@@ -479,8 +494,13 @@ Emit configuration:
   "sideEffects": false,
   "exports": {
     ".":         { "types": "./dist/index.d.ts",         "default": "./dist/index.js" },
-    "./testing": { "types": "./dist/testing/index.d.ts", "default": "./dist/testing/index.js" }
+    "./testing": { "types": "./dist/testing/index.d.ts", "default": "./dist/testing/index.js" },
+    "./package.json": "./package.json"
   },
+  // Legacy `moduleResolution: "node"` ONLY — modern resolvers use `exports` above.
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "typesVersions": { "*": { "testing": ["./dist/testing/index.d.ts"] } },
   "files": ["dist", "src"],
   "engines": { "node": ">=24" },
   "packageManager": "pnpm@11.5.2",
