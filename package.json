@@ -44,6 +44,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "no-provider-literals": "node scripts/no-provider-literals.mjs src dist README.md package.json",
+    "assert-tag-version": "node scripts/assert-tag-version.mjs",
     "check": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm no-provider-literals"
   },
   "dependencies": {},
