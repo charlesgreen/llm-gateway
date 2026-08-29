@@ -150,6 +150,12 @@ jobs:
       contents: read
       # The only elevated scope in this repo, granted to exactly one job.
       packages: write
+      # NOTE: no `actions: read`. This block REPLACES the default token scopes, so
+      # it was worth confirming rather than assuming: actions/download-artifact
+      # requires an explicit token only when fetching from a DIFFERENT repository or
+      # a DIFFERENT workflow run (its `repository` / `run-id` inputs). The download
+      # below passes neither — it is a same-run, same-repo fetch — so it resolves
+      # from the run context and needs no extra scope. Keep it that way.
     env:
       # Empty by default so the setup steps (and setup-node's internal `pnpm store
       # path`) do not warn on the .npmrc substitution. The REAL token is applied at
@@ -176,6 +182,29 @@ jobs:
         with:
           name: dist-${{ github.ref_name }}
           path: dist/
+
+      # The upload side guards itself with `if-no-files-found: error`; this is the
+      # matching assertion on the receiving side, and it closes the ONE path where a
+      # green `verify` still ships a broken package. `files` is ["dist", "src"], so a
+      # dist/ that arrived empty or partial would still produce a perfectly valid
+      # tarball — one whose `exports` resolve to nothing, failing in the consumer's
+      # bundler rather than here. Both subpath entrypoints declared in package.json
+      # are checked, types included, because those are exactly what a consumer
+      # resolves through.
+      - name: Assert the verified dist actually arrived
+        run: |
+          set -euo pipefail
+          for f in dist/index.js dist/index.d.ts \
+                   dist/testing/index.js dist/testing/index.d.ts; do
+            if [ ! -s "$f" ]; then
+              echo "::error::$f is missing or empty — the verified dist did not"\
+                   "arrive intact. Refusing to publish: package.json#exports would"\
+                   "resolve to nothing and the break would surface in a consumer's"\
+                   "bundler instead of here."
+              exit 1
+            fi
+          done
+          echo "verified dist intact — $(find dist -type f | wc -l) file(s)"
 
       # Re-asserted after checkout in this job too. Cheap, and it closes the window
       # where the two jobs could disagree about what is being shipped.
