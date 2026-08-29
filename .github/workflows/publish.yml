@@ -106,16 +106,45 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # ── 2. The irreversible step, behind a human ────────────────────────────────────
+  # ── 2. The irreversible step ────────────────────────────────────────────────────
   publish:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # REQUIRES a `publish` GitHub Environment with a required reviewer. NOTE: an
-    # Environment that exists but carries no protection rule is a SILENT NO-OP —
-    # this job would run unattended and merely look gated. See README/report: the
-    # reviewer must be verified as actually attached, not assumed from the fact that
-    # the environment resolves.
+    # ⚠️ NOT CURRENTLY HUMAN-GATED. Read this before trusting the line below.
+    #
+    # The `publish` Environment EXISTS but carries `protection_rules: []`. Attaching
+    # a required reviewer was attempted and REFUSED by the API, 2026-08-29:
+    #
+    #   422 — "Failed to create the environment protection rule. Please ensure the
+    #          billing plan supports the required reviewers protection rule."
+    #
+    # Required reviewers on a PRIVATE repo need a paid plan (GitHub Pro on a user
+    # account); this account is on the free tier, so the environment was created
+    # bare. Branch protection on main is unaffected and IS active — the two controls
+    # have different plan requirements, which is why one worked and this did not.
+    #
+    # An Environment with no protection rule is a SILENT NO-OP: this job runs
+    # unattended and merely LOOKS gated, which is the failure mode worth naming out
+    # loud rather than discovering after a bad tag ships. Right now the only control
+    # on a publish is who can cut a `v*` tag — i.e. tagging IS shipping, in one
+    # motion, not two (DESIGN.md §8, open question 3, now answered empirically).
+    #
+    # To close it, either:
+    #   a) upgrade to GitHub Pro, then re-run the PUT that failed:
+    #        gh api -X PUT repos/charlesgreen/llm-gateway/environments/publish \
+    #          -F wait_timer=0 -F prevent_self_review=false \
+    #          -f 'reviewers[][type]=User' -F 'reviewers[][id]=1191302'
+    #      then VERIFY the rule actually attached — a 2xx is not proof:
+    #        gh api repos/charlesgreen/llm-gateway/environments/publish \
+    #          --jq '.protection_rules'
+    #   b) or add the interim control: a `v*` tag-protection ruleset with an empty
+    #      bypass list, mirroring vendorwatch's "protect prod release tags". That
+    #      restricts WHO may trigger a publish rather than adding a second pair of
+    #      eyes — weaker, but real, and it keeps an agent from cutting a release tag.
+    #
+    # This line stays as-is either way: the moment a reviewer is attached, the gate
+    # engages with no change to this file.
     environment: publish
     permissions:
       contents: read
