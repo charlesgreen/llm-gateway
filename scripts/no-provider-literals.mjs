@@ -125,10 +125,11 @@ export function scanForLeaks(roots) {
 const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
   const roots = process.argv.slice(2);
-  // README is a root because npm publishes it REGARDLESS of the `files` allowlist,
-  // so it is shipped surface even though it is not code. Passed as an explicit file
-  // path it bypasses the extension filter.
-  const targets = roots.length > 0 ? roots : ["src", "dist", "README.md"];
+  // README and package.json are roots because npm publishes both REGARDLESS of the
+  // `files` allowlist, so they are shipped surface even though neither is code
+  // (package.json's description and keywords are free text). Passed as explicit
+  // file paths they bypass the extension filter.
+  const targets = roots.length > 0 ? roots : ["src", "dist", "README.md", "package.json"];
   let hits;
   let scanned;
   try {

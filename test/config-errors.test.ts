@@ -98,13 +98,10 @@ describe("config errors — resolution is LAZY", () => {
   it("does not throw at construction, even for a config that cannot possibly work", () => {
     // The regression this locks down: an eager throw escapes the handler before
     // the caller's own teardown runs, taking a database pool down with it.
-    expect(() =>
-      createGatewayClient({
-        model: undefined,
-        provider: undefined,
-        fetchImpl: fakeFetch().fetchImpl,
-      }),
-    ).not.toThrow();
+    // Deliberately NO fetchImpl: binding the platform fetch is the only eager
+    // statement in the factory, so injecting a fake here would skip the very path
+    // a real caller travels.
+    expect(() => createGatewayClient({ model: undefined, provider: undefined })).not.toThrow();
   });
 
   it("resolves the endpoint once and reuses it across calls", async () => {
