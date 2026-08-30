@@ -32,6 +32,24 @@ describe("routing — the two URL shapes", () => {
     expect(fake.body().model).toBe("prov-x/deployment-z");
   });
 
+  it("routes a THIRD, distinct unified provider through the identical code path — no branch, no release", async () => {
+    // Regression lock on the design's central claim: the router never compares
+    // against a provider identity, so a provider this suite has never named
+    // before is supported purely by config. If this ever required a code
+    // change, the client would have started branching on provider identity.
+    const fake = fakeFetch();
+    await createGatewayClient({
+      accountId: "acct-123",
+      gatewayId: "gw-test",
+      provider: "prov-q",
+      model: "model-w",
+      fetchImpl: fake.fetchImpl,
+    }).generate(REQ);
+
+    expect(fake.only().url).toBe(`${GATEWAY_ROOT}/compat/chat/completions`);
+    expect(fake.body().model).toBe("prov-q/model-w");
+  });
+
   it("treats an unfilled <placeholder> resource as unset rather than routing to a bogus path", async () => {
     const fake = fakeFetch();
     await createGatewayClient({
