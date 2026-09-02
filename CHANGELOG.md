@@ -9,6 +9,13 @@ config change. Consumers link that block from their bump PR.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-02
+
+### Changed
+
+- Publishing now uses npm's OIDC trusted publishing instead of a stored account token — no
+  functional change for consumers, no public API change.
+
 ## [0.1.0] - 2026-09-02
 
 ### Added
