@@ -9,13 +9,7 @@ config change. Consumers link that block from their bump PR.
 
 ## [Unreleased]
 
-## [0.1.1] - 2026-08-29
-
-### Fixed
-
-- Version-only bump to match the `v0.1.1` tag; no public API change.
-
-## [0.1.0] - 2026-08-29
+## [0.1.0] - 2026-09-02
 
 ### Added
 
