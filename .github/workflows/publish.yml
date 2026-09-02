@@ -112,6 +112,11 @@ jobs:
     environment: publish
     permissions:
       contents: read
+      # OIDC trusted publishing: npm exchanges this job's GitHub-issued OIDC token
+      # for a short-lived publish credential, scoped to the Trusted Publisher
+      # configured on the package (repo + this workflow file + this Environment).
+      # No npm token is generated, stored, or handled anywhere in this job.
+      id-token: write
       # NOTE: no `actions: read`. This block REPLACES the default token scopes, so
       # it was worth confirming rather than assuming: actions/download-artifact
       # requires an explicit token only when fetching from a DIFFERENT repository or
@@ -127,15 +132,11 @@ jobs:
         with:
           run_install: false
 
-      # `registry-url` writes a temporary ~/.npmrc mapping registry.npmjs.org to
-      # $NODE_AUTH_TOKEN, scoped to this job only — nothing is committed to the
-      # repo's own .npmrc, so a local `pnpm install` never sees or needs a token.
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
           cache: pnpm
-          registry-url: "https://registry.npmjs.org"
 
       # No build here by design — dist/ arrives as the verified artifact from job 1.
       - name: Download the verified dist
@@ -174,10 +175,10 @@ jobs:
 
       # `--no-git-checks`: a tag build is a detached HEAD, which pnpm otherwise
       # refuses to publish from. `access: public` comes from package.json#publishConfig
-      # (required for a scoped package to install without restriction). NPM_TOKEN is
-      # an npm automation token, scoped to this package, stored as a secret on the
-      # `publish` Environment — never the account's general credential.
+      # (required for a scoped package to install without restriction). No token: the
+      # `id-token: write` permission above plus the npm Trusted Publisher configured
+      # on the package are what authorize this publish (pnpm >=11.1.3, required for
+      # OIDC trusted publishing to work at all — pinned well above that in
+      # package.json#packageManager).
       - name: Publish to npm
         run: pnpm publish --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
