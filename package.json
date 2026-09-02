@@ -35,7 +35,6 @@
   },
   "packageManager": "pnpm@11.5.2",
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
     "access": "public"
   },
   "repository": {
