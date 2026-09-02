@@ -31,7 +31,11 @@ adding any of them would mean baking in an opinion a consumer may not share.
 
 ## Install
 
-This package is published to **GitHub Packages**, so a consumer needs the scope mapped and a token.
+This package is published to **GitHub Packages**. The package itself is public — no collaborator
+grant or invite is needed to install it — but GitHub's npm registry requires a token on every
+install regardless of package visibility (there is no anonymous-pull path for npm packages there,
+unlike GitHub's container registry). Any GitHub account can self-serve one; it does not need to be
+the repo owner's.
 
 Add to the consuming repo's `.npmrc`:
 
@@ -42,8 +46,8 @@ Add to the consuming repo's `.npmrc`:
 
 Then supply `NODE_AUTH_TOKEN`:
 
-- **Locally** — export a classic PAT with `read:packages` in your shell. Keep the auth line in
-  user-level npm config (`~/.npmrc`); never commit a token.
+- **Locally** — export a classic PAT with `read:packages` in your shell. Any GitHub account can
+  generate one; keep the auth line in user-level npm config (`~/.npmrc`), never commit a token.
 - **In CI** — every workflow that runs `pnpm install` needs `permissions: packages: read` and
   `NODE_AUTH_TOKEN` on its install step. `GITHUB_TOKEN` is not wired to `NODE_AUTH_TOKEN`
   automatically. Miss one workflow and it fails at 02:00 in a scheduled job, not in the PR.

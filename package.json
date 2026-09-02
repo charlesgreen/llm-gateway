@@ -1,6 +1,6 @@
 {
   "name": "@charlesgreen/llm-gateway",
-  "version": "0.1.1",
+  "version": "0.1.0",
   "description": "Portable client that routes chat-completions traffic through Cloudflare AI Gateway. Provider choice is configuration, never code.",
   "type": "module",
   "sideEffects": false,
@@ -36,7 +36,7 @@
   "packageManager": "pnpm@11.5.2",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
-    "access": "restricted"
+    "access": "public"
   },
   "repository": {
     "type": "git",
