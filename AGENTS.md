@@ -7,7 +7,7 @@
   in the same PR that changes the code, with the reason.
 
 A portable, dependency-free TypeScript client that carries chat-completions traffic through
-Cloudflare AI Gateway. Published to GitHub Packages for use by any consumer that needs
+Cloudflare AI Gateway. Published to the public npm registry for use by any consumer that needs
 config-driven provider routing.
 
 ## The one rule that shapes everything

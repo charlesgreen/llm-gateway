@@ -1,7 +1,7 @@
 name: Publish
 
-# The RELEASE path — publishes @charlesgreen/llm-gateway to GitHub Packages on a
-# `v*` tag, never on a merge to main.
+# The RELEASE path — publishes @charlesgreen/llm-gateway to the public npm registry
+# on a `v*` tag, never on a merge to main.
 #
 # Why tag-triggered: a published version is IMMUTABLE. Unpublishing is disruptive at
 # best and blocked at worst, which puts a publish in the same irreversible class as a
@@ -42,9 +42,6 @@ jobs:
     timeout-minutes: 15
     env:
       CI: "true"
-      # Deliberately EMPTY — see ci.yml for the full reasoning. This job installs
-      # and builds; it never publishes, so it is handed no credential at all.
-      NODE_AUTH_TOKEN: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -115,19 +112,12 @@ jobs:
     environment: publish
     permissions:
       contents: read
-      # The only elevated scope in this repo, granted to exactly one job.
-      packages: write
       # NOTE: no `actions: read`. This block REPLACES the default token scopes, so
       # it was worth confirming rather than assuming: actions/download-artifact
       # requires an explicit token only when fetching from a DIFFERENT repository or
       # a DIFFERENT workflow run (its `repository` / `run-id` inputs). The download
       # below passes neither — it is a same-run, same-repo fetch — so it resolves
       # from the run context and needs no extra scope. Keep it that way.
-    env:
-      # Empty by default so the setup steps (and setup-node's internal `pnpm store
-      # path`) do not warn on the .npmrc substitution. The REAL token is applied at
-      # step scope on the publish step alone — the one step that needs to write.
-      NODE_AUTH_TOKEN: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -137,11 +127,15 @@ jobs:
         with:
           run_install: false
 
+      # `registry-url` writes a temporary ~/.npmrc mapping registry.npmjs.org to
+      # $NODE_AUTH_TOKEN, scoped to this job only — nothing is committed to the
+      # repo's own .npmrc, so a local `pnpm install` never sees or needs a token.
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
           cache: pnpm
+          registry-url: "https://registry.npmjs.org"
 
       # No build here by design — dist/ arrives as the verified artifact from job 1.
       - name: Download the verified dist
@@ -179,12 +173,11 @@ jobs:
         run: node scripts/assert-tag-version.mjs "${{ github.ref }}"
 
       # `--no-git-checks`: a tag build is a detached HEAD, which pnpm otherwise
-      # refuses to publish from. Registry + restricted access come from
-      # package.json#publishConfig, and the @charlesgreen scope mapping from the
-      # committed .npmrc — together they make it impossible for this to reach public
-      # npm even if the registry flag were dropped. GITHUB_TOKEN is sufficient: this
-      # is a same-account publish, which is the case it is unambiguously good for.
-      - name: Publish to GitHub Packages
+      # refuses to publish from. `access: public` comes from package.json#publishConfig
+      # (required for a scoped package to install without restriction). NPM_TOKEN is
+      # an npm automation token, scoped to this package, stored as a secret on the
+      # `publish` Environment — never the account's general credential.
+      - name: Publish to npm
         run: pnpm publish --no-git-checks
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

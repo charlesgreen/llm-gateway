@@ -36,15 +36,6 @@ jobs:
     env:
       # vitest honors CI=true (junit reporter, no watch) — see vitest.config.ts.
       CI: "true"
-      # Job-level and deliberately EMPTY, not a token. The committed .npmrc
-      # interpolates ${NODE_AUTH_TOKEN}, and pnpm warns on every invocation when the
-      # var is unset — including inside actions/setup-node's own `pnpm store path`
-      # call, which a step-level env cannot reach. Nothing in this repo resolves to
-      # npm.pkg.github.com (`dependencies` is empty; every devDependency is public
-      # npm), so no credential is needed to install and none is granted. Defining it
-      # empty satisfies the substitution and silences the warning without handing a
-      # token to any step. Verified: unset warns, empty does not.
-      NODE_AUTH_TOKEN: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v6
