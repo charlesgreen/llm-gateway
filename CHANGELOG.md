@@ -9,11 +9,19 @@ config change. Consumers link that block from their bump PR.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-13
+
+### Changed
+
+- README, `AGENTS.md`, and this changelog rewritten in plainer prose. No code or public API
+  change.
+- Dev-only: vitest 4.1.8 → 4.1.11.
+
 ## [0.1.1] - 2026-09-02
 
 ### Changed
 
-- Publishing now uses npm's OIDC trusted publishing instead of a stored account token — no
+- Publishing now uses npm's OIDC trusted publishing instead of a stored account token. No
   functional change for consumers, no public API change.
 
 ## [0.1.0] - 2026-09-02
@@ -21,17 +29,17 @@ config change. Consumers link that block from their bump PR.
 ### Added
 
 - Initial implementation.
-  - `createGatewayClient(config)` — chat-completions traffic over Cloudflare AI Gateway, with the
-    URL shape selected by the **presence** of `resourceName` and no provider-name comparison
+  - `createGatewayClient(config)`: chat-completions traffic over Cloudflare AI Gateway, with the
+    URL shape selected by the presence of `resourceName` and no provider-name comparison
     anywhere.
   - Composable dual credentials: a gateway-hop token and an optional provider key whose header name
     and scheme are configuration. Zero credentials is a valid, supported state.
   - `<placeholder>` detection, errors that name the value to fix, an optional `varNames` label map,
     and redaction of the configured model / provider / resource out of upstream error bodies.
   - Lazy config resolution, and the platform `fetch` bound once at construction.
-  - `resolveEndpoint` — the single extension point, overriding the URL only.
+  - `resolveEndpoint`: the single extension point; it overrides the URL only.
   - `./testing` subpath: `fakeFetch()` and `cassetteClient()`.
-- `scripts/no-provider-literals.mjs` — the consumer-compatibility gate, run over `src/`, `dist/`,
+- `scripts/no-provider-literals.mjs`: the consumer-compatibility gate, run over `src/`, `dist/`,
   `README.md` and `package.json`, with a negative control proving it goes red on a planted token.
 
 ### Fixed
