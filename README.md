@@ -1,38 +1,38 @@
 # @charlesgreen/llm-gateway
 
 A small, dependency-free TypeScript client that carries chat-completions traffic through
-**Cloudflare AI Gateway**.
+Cloudflare AI Gateway.
 
-The one thing it is for: **switching the underlying model provider is a config change in the
-consuming app, never a code change** — not here, and not at the call site. Nothing in this package
-compares against a provider name, so there is nothing to edit when the provider changes.
+It exists to make one guarantee: switching the underlying model provider is a config change in the
+consuming app, never a code change. Nothing in this package compares against a provider name, so
+when the provider changes there is nothing to edit, here or at the call site.
 
-The one rule that shapes the whole design, and the gate that enforces it, are in `AGENTS.md`.
+The rule that shapes the whole design, and the gate that enforces it, are in `AGENTS.md`.
 
 ## What it does
 
-- Routes over **two URL shapes** — a unified endpoint most providers reach, and a path-addressed
-  shape some require. Which one is used is decided by the **presence of `resourceName` in config**,
-  not by any provider comparison.
-- Composes **two independent credentials**: a gateway-hop token and an optional provider key. Both,
-  either, or **neither** is valid — a deployment whose provider key is stored in the gateway sends
-  no provider credential at all.
-- Treats an unfilled `<placeholder>` as unset, and **names the value to fix** when a required one is
+- Routes over two URL shapes: a unified endpoint most providers reach, and a path-addressed shape
+  some require. The choice depends on whether `resourceName` is present in config, not on any
+  provider comparison.
+- Composes two independent credentials, a gateway-hop token and an optional provider key. Both,
+  either, or neither is valid. A deployment whose provider key is stored in the gateway sends no
+  provider credential at all.
+- Treats an unfilled `<placeholder>` as unset, and names the value to fix when a required one is
   missing.
-- **Redacts** the configured model / provider / resource strings out of upstream error bodies before
+- Redacts the configured model, provider, and resource strings out of upstream error bodies before
   throwing, because those messages get persisted and logged.
-- Resolves config **lazily**, on the first call, so a bad variable never throws out of a handler
-  ahead of its own setup and teardown.
-- Ships a supported **test kit** on a subpath, so consumers do not hand-roll a drifting fake.
+- Resolves config lazily, on the first call, so a bad variable never throws out of a handler ahead
+  of its own setup and teardown.
+- Ships a supported test kit on a subpath, so consumers do not hand-roll a drifting fake.
 
 Deliberately absent: retries, caching, tiering, pricing, prompt templating, schema parsing,
-streaming. Each is somebody else's job: this client stays a thin, provider-agnostic transport, and
-adding any of them would mean baking in an opinion a consumer may not share.
+streaming. Each is somebody else's job. This client stays a thin, provider-agnostic transport, and
+adding any of them would bake in an opinion a consumer may not share.
 
 ## Install
 
-This package is published to the public **npm registry**. No token, scope mapping, or account
-grant is needed to install it — anyone can:
+The package is published to the public npm registry, so a plain install works with no token and no
+account setup:
 
 ```sh
 pnpm add @charlesgreen/llm-gateway
@@ -73,8 +73,8 @@ const { text, usage } = await client.generate({
 // usage → { inputTokens, outputTokens }
 ```
 
-`generate` returns **raw text**. Parsing it — with a schema or otherwise — is the caller's job, and
-that boundary is what keeps the client provider-agnostic.
+`generate` returns raw text. Parsing it, with a schema or otherwise, is the caller's job, and that
+boundary is what keeps the client provider-agnostic.
 
 ### Bring your own provider key
 
@@ -105,12 +105,13 @@ const model = cassetteClient(recordedResponseText);
 
 ## Contributing
 
-`pnpm check` is the gate: lint → typecheck → tests with coverage → build → **no-provider-literals**.
+`pnpm check` is the gate: lint, typecheck, tests with coverage, build, and the no-provider-literals
+scan.
 
 That last step is not a style rule. Consumers bundle this package's compiled output into a build
-that is itself scanned for vendor brand tokens — identifiers, string literals **and comments** — so
-a single brand token here turns a consumer's build red and keeps it red. Zero literals is a hard
+that is itself scanned for vendor brand tokens in identifiers, string literals, and comments. A
+single brand token here turns a consumer's build red and keeps it red, so zero literals is a hard
 interface requirement. Never weaken the scanner to make it pass; route the value through config
 instead.
 
-Releases publish on a `v*` tag, not on merge — see `.github/workflows/publish.yml` for the flow.
+Releases publish on a `v*` tag, not on merge. See `.github/workflows/publish.yml` for the flow.
