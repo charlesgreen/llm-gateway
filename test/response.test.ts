@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { createGatewayClient, GatewayResponseError } from "../src/index.js";
 import { fakeFetch } from "../src/testing/index.js";
-import { BASE, PATH_ADDRESSED, REQ } from "./fixtures.js";
+import { BASE, PATH_ADDRESSED, PROJECT_LOCATED, REQ } from "./fixtures.js";
 
 describe("response — text and usage", () => {
   it("maps the wire token counters onto the port's neutral names", async () => {
@@ -90,5 +90,60 @@ describe("response — upstream failures are redacted", () => {
 
     const err = (await client.generate(REQ).catch((e: unknown) => e)) as Error;
     expect(err.message.length).toBeLessThan(500);
+  });
+});
+
+describe("response — the project-located contents envelope", () => {
+  it("joins candidate text parts and maps usageMetadata onto the port's neutral names", async () => {
+    const fake = fakeFetch({
+      body: {
+        candidates: [{ content: { parts: [{ text: '{"a":1}' }, { text: '{"b":2}' }] } }],
+        usageMetadata: { promptTokenCount: 11, candidatesTokenCount: 7 },
+      },
+    });
+    const out = await createGatewayClient({
+      ...PROJECT_LOCATED,
+      fetchImpl: fake.fetchImpl,
+    }).generate(REQ);
+
+    expect(out.text).toBe('{"a":1}{"b":2}');
+    expect(out.usage).toEqual({ inputTokens: 11, outputTokens: 7 });
+  });
+
+  it("yields an empty string rather than throwing when there are no candidates", async () => {
+    const fake = fakeFetch({
+      body: { usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 0 } },
+    });
+    const out = await createGatewayClient({
+      ...PROJECT_LOCATED,
+      fetchImpl: fake.fetchImpl,
+    }).generate(REQ);
+
+    expect(out.text).toBe("");
+    expect(out.usage.inputTokens).toBe(3);
+  });
+
+  it("still reads a chat-completions body when no candidates block is present", async () => {
+    const fake = fakeFetch();
+    const out = await createGatewayClient({ ...BASE, fetchImpl: fake.fetchImpl }).generate(REQ);
+
+    expect(out.text).toBe('{"ok":true}');
+    expect(out.usage).toEqual({ inputTokens: 1200, outputTokens: 300 });
+  });
+
+  it("strips the configured project, location and publisher out of an upstream error body", async () => {
+    const fake = fakeFetch({
+      ok: false,
+      status: 400,
+      text: "project proj-1 in loc-2 publisher pub-y rejected deployment-z",
+    });
+    const client = createGatewayClient({ ...PROJECT_LOCATED, fetchImpl: fake.fetchImpl });
+    const err = (await client.generate(REQ).catch((e: unknown) => e)) as GatewayResponseError;
+
+    expect(err.message).not.toContain("proj-1");
+    expect(err.message).not.toContain("loc-2");
+    expect(err.message).not.toContain("pub-y");
+    expect(err.message).not.toContain("deployment-z");
+    expect(err.message).toContain("<redacted>");
   });
 });

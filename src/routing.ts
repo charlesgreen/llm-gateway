@@ -1,4 +1,9 @@
-import { configuredOrUndefined, requireConfigured } from "./config.js";
+import {
+  configuredOrUndefined,
+  GatewayConfigError,
+  labelFor,
+  requireConfigured,
+} from "./config.js";
 import type { Endpoint, GatewayConfig, ResolvedConfig } from "./types.js";
 
 /** The default gateway host. Only used when no `baseUrl` override is supplied. */
@@ -57,32 +62,74 @@ export function resolveConfig(config: GatewayConfig): ResolvedConfig {
   const provider = requireConfigured(
     config,
     "provider",
-    "the gateway provider slug — required for both the path-addressed and the unified URL shape",
+    "the gateway provider slug — required for every URL shape",
   );
+  const resourceName = configuredOrUndefined(config.resourceName);
+  const projectId = configuredOrUndefined(config.projectId);
+  const location = configuredOrUndefined(config.location);
+  if (resourceName && (projectId || location)) {
+    throw new GatewayConfigError(
+      `${labelFor(config, "projectId")} cannot be set together with ${labelFor(config, "resourceName")} ` +
+        `(two URL shapes were asked for)`,
+      "projectId",
+    );
+  }
   return {
     baseUrl: resolveGatewayBase(config),
     provider,
     model,
-    resourceName: configuredOrUndefined(config.resourceName),
+    resourceName,
     apiVersion: configuredOrUndefined(config.apiVersion),
+    projectId,
+    location,
+    publisher: configuredOrUndefined(config.publisher),
+    rpc: configuredOrUndefined(config.rpc),
   };
 }
 
 /**
- * The two URL shapes, selected by the PRESENCE of a resource name.
+ * The URL shapes, selected by the PRESENCE of config fields — never by comparing
+ * a provider name.
  *
- * There is no provider-name comparison here or anywhere else in the package. That
- * is what makes a provider swap a config change, and it means a NEW provider that
- * needs the path shape is supported on day one with no release — the consumer just
- * sets the resource variable.
+ * - no resource, no project → unified chat-completions
+ * - a resource name → path-addressed chat-completions
+ * - a project id and a location → project-located rpc (a different request
+ *   envelope; see `buildBody` in the client)
  *
- * The caveat worth stating, because it is the sentence someone will act on later:
- * this only works for a provider whose native API is itself chat-completions
- * shaped. Point the resource at a provider with its own request envelope and you
- * get the right URL with the wrong body.
+ * That last shape is how a provider whose native API is not chat-completions
+ * still gets the right URL AND the right body, without a vendor-name branch.
  */
 export function defaultEndpoint(config: GatewayConfig, resolved: ResolvedConfig): Endpoint {
-  const { baseUrl, provider, model, resourceName } = resolved;
+  const { baseUrl, provider, model, resourceName, projectId, location } = resolved;
+
+  if (projectId || location) {
+    const pid = requireConfigured(
+      config,
+      "projectId",
+      "the project-located URL shape requires a project id",
+    );
+    const loc = requireConfigured(
+      config,
+      "location",
+      "the project-located URL shape requires a location",
+    );
+    const publisher = requireConfigured(
+      config,
+      "publisher",
+      "the project-located URL shape requires a publisher path segment",
+    );
+    const rpc = requireConfigured(
+      config,
+      "rpc",
+      "the project-located URL shape requires an rpc method",
+    );
+    return {
+      url:
+        `${baseUrl}/${encodeURIComponent(provider)}/v1/projects/${encodeURIComponent(pid)}` +
+        `/locations/${encodeURIComponent(loc)}/publishers/${encodeURIComponent(publisher)}` +
+        `/models/${encodeURIComponent(model)}:${encodeURIComponent(rpc)}`,
+    };
+  }
 
   if (!resourceName) {
     return {

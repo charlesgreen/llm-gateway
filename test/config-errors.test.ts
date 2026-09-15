@@ -41,6 +41,23 @@ describe("config errors — every required value, named", () => {
       { resourceName: "res-y", apiVersion: "<set-at-provision>" },
       /^apiVersion is still the unfilled/,
     ],
+    ["a project-located call with no location", { projectId: "proj-1" }, /^location is not set/],
+    ["a project-located call with no project id", { location: "loc-2" }, /^projectId is not set/],
+    [
+      "a project-located call with no publisher",
+      { projectId: "proj-1", location: "loc-2", rpc: "runPredict" },
+      /^publisher is not set/,
+    ],
+    [
+      "a project-located call with no rpc",
+      { projectId: "proj-1", location: "loc-2", publisher: "pub-y" },
+      /^rpc is not set/,
+    ],
+    [
+      "both a resource name and a project id, which is two shapes at once",
+      { resourceName: "res-y", apiVersion: "2099-01-01", projectId: "proj-1", location: "loc-2" },
+      /^projectId cannot be set together with resourceName/,
+    ],
   ];
 
   for (const [name, overrides, expected] of cases) {

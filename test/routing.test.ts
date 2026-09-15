@@ -2,14 +2,15 @@
  * GATE — the URL the client builds, over an injected fake fetch.
  *
  * The routing decision is PRESENCE-DRIVEN: a resource name selects the
- * path-addressed shape, its absence selects the unified one. No vendor name is
- * compared anywhere, so these assertions are what prove the shape is reachable
+ * path-addressed shape, a project id and location select the project-located
+ * shape, and the absence of both selects the unified one. No vendor name is
+ * compared anywhere, so these assertions are what prove each shape is reachable
  * from config alone.
  */
 import { describe, it, expect } from "vitest";
 import { createGatewayClient, type Endpoint, type ResolvedConfig } from "../src/index.js";
 import { fakeFetch } from "../src/testing/index.js";
-import { BASE, GATEWAY_ROOT, PATH_ADDRESSED, REQ } from "./fixtures.js";
+import { BASE, GATEWAY_ROOT, PATH_ADDRESSED, PROJECT_LOCATED, REQ } from "./fixtures.js";
 
 describe("routing — the two URL shapes", () => {
   it("addresses a path-routed provider by resource and model in the URL, with no model in the body", async () => {
@@ -155,6 +156,10 @@ describe("routing — the resolveEndpoint escape hatch", () => {
         model: "deployment-z",
         resourceName: "res-y",
         apiVersion: "2099-01-01",
+        projectId: undefined,
+        location: undefined,
+        publisher: undefined,
+        rpc: undefined,
       },
     ]);
   });
@@ -202,5 +207,47 @@ describe("routing — the resolveEndpoint escape hatch", () => {
     expect(message).not.toContain("deployment-z");
     expect(message).not.toContain("res-y");
     expect(message).not.toContain("PROV-X");
+  });
+});
+
+describe("routing — the project-located shape", () => {
+  it("addresses the call by project, location, publisher, model and rpc, with no model in the body", async () => {
+    const fake = fakeFetch();
+    await createGatewayClient({ ...PROJECT_LOCATED, fetchImpl: fake.fetchImpl }).generate(REQ);
+
+    expect(fake.only().url).toBe(
+      `${GATEWAY_ROOT}/prov-x/v1/projects/proj-1/locations/loc-2/publishers/pub-y/models/deployment-z:runPredict`,
+    );
+    expect(fake.body().model).toBeUndefined();
+    expect(fake.body().messages).toBeUndefined();
+  });
+
+  it("percent-encodes every project-located segment it interpolates", async () => {
+    const fake = fakeFetch();
+    await createGatewayClient({
+      ...PROJECT_LOCATED,
+      provider: "prov x",
+      projectId: "proj/1",
+      location: "loc 2",
+      publisher: "pub/y",
+      model: "deployment z",
+      rpc: "run Predict",
+      fetchImpl: fake.fetchImpl,
+    }).generate(REQ);
+
+    expect(fake.only().url).toBe(
+      `${GATEWAY_ROOT}/prov%20x/v1/projects/proj%2F1/locations/loc%202/publishers/pub%2Fy/models/deployment%20z:run%20Predict`,
+    );
+  });
+
+  it("treats an unfilled <placeholder> project id as unset rather than routing to a bogus path", async () => {
+    const fake = fakeFetch();
+    await createGatewayClient({
+      ...BASE,
+      projectId: "<set-at-provision>",
+      fetchImpl: fake.fetchImpl,
+    }).generate(REQ);
+
+    expect(fake.only().url).toBe(`${GATEWAY_ROOT}/compat/chat/completions`);
   });
 });

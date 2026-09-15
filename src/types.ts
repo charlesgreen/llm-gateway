@@ -97,6 +97,11 @@ export interface ResolvedConfig {
   /** Present only when the path-addressed shape was selected. */
   resourceName?: string;
   apiVersion?: string;
+  /** Present only when the project-located shape was selected. */
+  projectId?: string;
+  location?: string;
+  publisher?: string;
+  rpc?: string;
 }
 
 /** Where to POST, and what (if anything) to name in the body. */
@@ -146,6 +151,27 @@ export interface GatewayConfig {
   resourceName?: string;
   /** Required alongside `resourceName` — the api-version query parameter. */
   apiVersion?: string;
+  /**
+   * ITS PRESENCE, WITH `location`, IS THE ROUTING SIGNAL for the project-located
+   * shape. Set both → a URL that interpolates project, location, publisher, and
+   * an rpc method rather than `/chat/completions`. Unset (and no resource name)
+   * → the unified endpoint. Setting this together with `resourceName` is an
+   * error: two shapes were asked for.
+   */
+  projectId?: string;
+  /** Required alongside `projectId`. */
+  location?: string;
+  /**
+   * Required alongside `projectId` and `location` — the publisher path segment.
+   * A RUNTIME VALUE, never a default, for the same reason the model id is never
+   * defaulted.
+   */
+  publisher?: string;
+  /**
+   * Required alongside `projectId` and `location` — the rpc method appended after
+   * the model (`:rpc`). A RUNTIME VALUE, never inferred from the model id.
+   */
+  rpc?: string;
 
   // --- auth: two independent questions that COMPOSE ---
   /**

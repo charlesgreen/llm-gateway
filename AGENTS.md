@@ -6,9 +6,10 @@
   decision rather than re-deriving an alternative. If a decision turns out to be wrong, change this
   file in the same PR that changes the code, with the reason.
 
-A portable, dependency-free TypeScript client that carries chat-completions traffic through
-Cloudflare AI Gateway. Published to the public npm registry for use by any consumer that needs
-config-driven provider routing.
+A portable, dependency-free TypeScript client that carries model traffic through Cloudflare AI
+Gateway. Published to the public npm registry for use by any consumer that needs config-driven
+provider routing. The default envelope is chat-completions; a project-located config selects a
+contents/rpc envelope instead. Neither choice is made by comparing a provider name.
 
 ## The one rule that shapes everything
 

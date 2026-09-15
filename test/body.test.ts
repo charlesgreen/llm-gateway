@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { createGatewayClient } from "../src/index.js";
 import { fakeFetch } from "../src/testing/index.js";
-import { BASE, REQ } from "./fixtures.js";
+import { BASE, PROJECT_LOCATED, REQ } from "./fixtures.js";
 
 describe("body — messages", () => {
   it("sends the system and user turns in order", async () => {
@@ -108,5 +108,52 @@ describe("body — temperature", () => {
     });
 
     expect(fake.body().temperature).toBe(0);
+  });
+});
+
+describe("body — the project-located contents envelope", () => {
+  it("sends the user turn as a contents part and the system turn as a systemInstruction", async () => {
+    const fake = fakeFetch();
+    await createGatewayClient({ ...PROJECT_LOCATED, fetchImpl: fake.fetchImpl }).generate(REQ);
+
+    expect(fake.body().contents).toEqual([{ role: "user", parts: [{ text: "usr" }] }]);
+    expect(fake.body().systemInstruction).toEqual({ parts: [{ text: "sys" }] });
+    expect(fake.body().messages).toBeUndefined();
+  });
+
+  it("omits systemInstruction when the caller sends an empty system turn", async () => {
+    const fake = fakeFetch();
+    await createGatewayClient({ ...PROJECT_LOCATED, fetchImpl: fake.fetchImpl }).generate({
+      system: "",
+      user: "usr",
+    });
+
+    expect(fake.body().systemInstruction).toBeUndefined();
+    expect(fake.body().contents).toEqual([{ role: "user", parts: [{ text: "usr" }] }]);
+  });
+
+  it("puts temperature and the output cap on generationConfig, never the chat-completions names", async () => {
+    const fake = fakeFetch();
+    await createGatewayClient({
+      ...PROJECT_LOCATED,
+      maxOutputTokens: 4096,
+      fetchImpl: fake.fetchImpl,
+    }).generate(REQ);
+
+    expect(fake.body().generationConfig).toEqual({ temperature: 0.1, maxOutputTokens: 4096 });
+    expect(fake.body().temperature).toBeUndefined();
+    expect(fake.body().max_tokens).toBeUndefined();
+    expect(fake.body().max_completion_tokens).toBeUndefined();
+  });
+
+  it("omits temperature from generationConfig when the model family rejects an explicit value", async () => {
+    const fake = fakeFetch();
+    await createGatewayClient({
+      ...PROJECT_LOCATED,
+      supportsTemperature: false,
+      fetchImpl: fake.fetchImpl,
+    }).generate(REQ);
+
+    expect(fake.body().generationConfig).toBeUndefined();
   });
 });

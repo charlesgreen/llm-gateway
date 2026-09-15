@@ -15,11 +15,19 @@ import type {
   Usage,
 } from "./types.js";
 
-/** The chat-completions response body both URL shapes return. */
+/** The chat-completions response body the unified and path-addressed shapes return. */
 interface ChatCompletionResponse {
   choices?: Array<{ message?: { content?: string } }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
+
+/** The contents-envelope response body the project-located shape returns. */
+interface ContentsResponse {
+  candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+}
+
+type GatewayResponse = ChatCompletionResponse & ContentsResponse;
 
 /** Used only when a provider key is configured with no explicit `providerAuth`. */
 const DEFAULT_PROVIDER_AUTH = { header: "authorization", scheme: "Bearer" };
@@ -62,16 +70,32 @@ function buildHeaders(config: GatewayConfig): Record<string, string> {
   return headers;
 }
 
+function isProjectLocated(config: GatewayConfig): boolean {
+  return !!(configuredOrUndefined(config.projectId) || configuredOrUndefined(config.location));
+}
+
 function buildBody(config: GatewayConfig, endpoint: Endpoint, req: GenerateRequest): string {
   const cap = config.maxOutputTokens;
+  const sendTemperature = config.supportsTemperature !== false && req.temperature !== undefined;
+
+  if (isProjectLocated(config)) {
+    const generationConfig: Record<string, unknown> = {
+      ...(sendTemperature ? { temperature: req.temperature } : {}),
+      ...(cap && cap > 0 ? { maxOutputTokens: cap } : {}),
+    };
+    return JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: req.user }] }],
+      ...(req.system ? { systemInstruction: { parts: [{ text: req.system }] } } : {}),
+      ...(Object.keys(generationConfig).length > 0 ? { generationConfig } : {}),
+    });
+  }
+
   const tokenParam =
     cap && cap > 0
       ? config.usesMaxCompletionTokens
         ? { max_completion_tokens: cap }
         : { max_tokens: cap }
       : {};
-
-  const sendTemperature = config.supportsTemperature !== false && req.temperature !== undefined;
 
   return JSON.stringify({
     // Named in the body only on the unified endpoint — the path-addressed shape
@@ -86,10 +110,29 @@ function buildBody(config: GatewayConfig, endpoint: Endpoint, req: GenerateReque
   });
 }
 
+function readText(data: GatewayResponse | undefined): string {
+  const parts = data?.candidates?.[0]?.content?.parts;
+  if (parts) return parts.map((p) => p.text ?? "").join("");
+  return data?.choices?.[0]?.message?.content ?? "";
+}
+
+function readUsage(data: GatewayResponse | undefined): Usage {
+  if (data?.usageMetadata) {
+    return {
+      inputTokens: data.usageMetadata.promptTokenCount ?? 0,
+      outputTokens: data.usageMetadata.candidatesTokenCount ?? 0,
+    };
+  }
+  return {
+    inputTokens: data?.usage?.prompt_tokens ?? 0,
+    outputTokens: data?.usage?.completion_tokens ?? 0,
+  };
+}
+
 /**
- * Build a client that carries chat-completions traffic through Cloudflare AI
- * Gateway. Every provider-shaped decision — the slug, the URL shape, the auth
- * headers, the output-cap parameter, whether temperature is accepted — is a
+ * Build a client that carries model traffic through Cloudflare AI Gateway. Every
+ * provider-shaped decision — the slug, the URL shape, the request envelope, the
+ * auth headers, the output-cap parameter, whether temperature is accepted — is a
  * RUNTIME VALUE read from `config`. Nothing in this package compares against a
  * vendor name, which is what makes switching a config change rather than a
  * release.
@@ -125,6 +168,10 @@ export function createGatewayClient(config: GatewayConfig): ModelClient {
           configuredOrUndefined(config.model),
           configuredOrUndefined(config.provider),
           configuredOrUndefined(config.resourceName),
+          configuredOrUndefined(config.projectId),
+          configuredOrUndefined(config.location),
+          configuredOrUndefined(config.publisher),
+          configuredOrUndefined(config.rpc),
         ]).slice(0, MAX_ERROR_BODY_CHARS);
         throw new GatewayResponseError(
           `model gateway call failed (HTTP ${res.status}): ${safe}`,
@@ -132,22 +179,12 @@ export function createGatewayClient(config: GatewayConfig): ModelClient {
         );
       }
 
-      const data = (await res.json()) as ChatCompletionResponse | undefined;
+      const data = (await res.json()) as GatewayResponse | undefined;
 
-      // A response with no choices yields an empty string rather than a throw: the
-      // caller owns parsing, and an empty payload is its parse failure to report,
-      // not a transport error to retry.
-      const text = data?.choices?.[0]?.message?.content ?? "";
-
-      // Mapped from the WIRE field names, which is the only place they belong. The
-      // fallback is 0 rather than undefined so a missing usage block can never
-      // surface as NaN downstream.
-      const usage: Usage = {
-        inputTokens: data?.usage?.prompt_tokens ?? 0,
-        outputTokens: data?.usage?.completion_tokens ?? 0,
-      };
-
-      return { text, usage };
+      // A response with no choices / no candidates yields an empty string rather
+      // than a throw: the caller owns parsing, and an empty payload is its parse
+      // failure to report, not a transport error to retry.
+      return { text: readText(data), usage: readUsage(data) };
     },
   };
 }
