@@ -9,6 +9,8 @@ config change. Consumers link that block from their bump PR.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-15
+
 ### Added
 
 - A third, presence-driven URL shape: when `projectId` and `location` are both set, the client
