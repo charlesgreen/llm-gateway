@@ -1,6 +1,6 @@
 # @charlesgreen/llm-gateway
 
-A small, dependency-free TypeScript client that carries chat-completions traffic through
+A small, dependency-free TypeScript client that carries model traffic through
 Cloudflare AI Gateway.
 
 It exists to make one guarantee: switching the underlying model provider is a config change in the
@@ -11,9 +11,11 @@ The rule that shapes the whole design, and the gate that enforces it, are in `AG
 
 ## What it does
 
-- Routes over two URL shapes: a unified endpoint most providers reach, and a path-addressed shape
-  some require. The choice depends on whether `resourceName` is present in config, not on any
-  provider comparison.
+- Routes over three URL shapes, selected by config presence, never by comparing a provider name:
+  a unified endpoint most providers reach; a path-addressed shape some require (`resourceName`);
+  and a project-located rpc shape some require (`projectId` + `location`, with `publisher` and
+  `rpc`). The project-located shape also switches the request envelope (contents / systemInstruction
+  instead of messages) and the response parser.
 - Composes two independent credentials, a gateway-hop token and an optional provider key. Both,
   either, or neither is valid. A deployment whose provider key is stored in the gateway sends no
   provider credential at all.
@@ -50,9 +52,16 @@ const client = createGatewayClient({
   provider: env.LLM_PROVIDER,
 
   // Set this and the client uses the path-addressed URL shape. Leave it unset
-  // and it uses the unified endpoint. That is the whole routing decision.
+  // (and leave projectId unset) and it uses the unified endpoint.
   resourceName: env.AI_PROVIDER_RESOURCE,
   apiVersion: env.AI_PROVIDER_API_VERSION,
+
+  // Set projectId AND location and the client uses the project-located rpc
+  // shape instead. publisher and rpc are required alongside the pair.
+  // projectId: env.AI_PROVIDER_PROJECT,
+  // location: env.AI_PROVIDER_LOCATION,
+  // publisher: env.AI_PROVIDER_PUBLISHER,
+  // rpc: env.AI_PROVIDER_RPC,
 
   gatewayToken: env.AI_GATEWAY_TOKEN,
 

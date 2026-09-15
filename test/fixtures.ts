@@ -21,6 +21,19 @@ export const PATH_ADDRESSED: GatewayConfig = {
   apiVersion: "2099-01-01",
 };
 
+/**
+ * The project-located shape: a project id AND a location select it. Publisher
+ * and rpc are required alongside the pair, the same way api-version is required
+ * alongside a resource name.
+ */
+export const PROJECT_LOCATED: GatewayConfig = {
+  ...BASE,
+  projectId: "proj-1",
+  location: "loc-2",
+  publisher: "pub-y",
+  rpc: "runPredict",
+};
+
 export const REQ: GenerateRequest = { system: "sys", user: "usr", temperature: 0.1 };
 
 export const GATEWAY_ROOT = "https://gateway.ai.cloudflare.com/v1/acct-123/gw-test";

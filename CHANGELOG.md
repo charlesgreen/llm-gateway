@@ -9,6 +9,15 @@ config change. Consumers link that block from their bump PR.
 
 ## [Unreleased]
 
+### Added
+
+- A third, presence-driven URL shape: when `projectId` and `location` are both set, the client
+  addresses `{provider}/v1/projects/{projectId}/locations/{location}/publishers/{publisher}/models/{model}:{rpc}`,
+  sends a contents / systemInstruction envelope, and reads candidate text parts plus
+  `usageMetadata` token counts. `publisher` and `rpc` are required alongside the pair.
+  Setting `projectId` together with `resourceName` is a named config error (two shapes at once).
+  The unified and path-addressed chat-completions shapes are unchanged.
+
 ## [0.1.2] - 2026-09-13
 
 ### Changed
