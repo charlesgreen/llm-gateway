@@ -15,6 +15,12 @@ export interface GenerateRequest {
    * not a required parameter of this abstraction.
    */
   temperature?: number;
+  /**
+   * Optional per-request headers. Merged over any client-level `headers`
+   * configured in `GatewayConfig`. Useful for per-call trace metadata or cache
+   * controls.
+   */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -191,6 +197,15 @@ export interface GatewayConfig {
   providerKey?: string;
   /** How to send `providerKey`. Defaults to a bearer `authorization` header. */
   providerAuth?: ProviderAuth;
+
+  // --- gateway passthrough headers ---
+  /**
+   * Optional custom headers sent on every gateway request.
+   * Useful for Cloudflare AI Gateway metadata or cache controls
+   * (such as `cf-aig-metadata`, `cf-aig-cache-ttl`, `cf-aig-skip-cache`).
+   * Header names are normalized to lower case.
+   */
+  headers?: Record<string, string>;
 
   // --- model-family quirks, as EXPLICIT config ---
   /**

@@ -9,6 +9,30 @@ when the provider changes there is nothing to edit, here or at the call site.
 
 The rule that shapes the whole design, and the gate that enforces it, are in `AGENTS.md`.
 
+## Architecture
+
+```mermaid
+flowchart TD
+  App["Application Code"] -->|"client.generate(req)"| GatewayClient["@charlesgreen/llm-gateway"]
+
+  subgraph ClientInternal["Gateway Client"]
+    GatewayClient --> Resolve["resolveEndpoint(config)"]
+    GatewayClient --> Headers["buildHeaders(config, req)"]
+    GatewayClient --> Body["buildBody(config, endpoint, req)"]
+
+    Resolve --> ShapeCheck{"Config Detection"}
+    ShapeCheck -->|"default"| Shape1["Unified Endpoint\n/v1/chat/completions"]
+    ShapeCheck -->|"resourceName"| Shape2["Path-Addressed Shape\n/{resource}/.../chat/completions"]
+    ShapeCheck -->|"projectId + location"| Shape3["Project RPC Shape\n/{project}/{location}/{publisher}/{model}:{rpc}"]
+  end
+
+  Shape1 --> CF["Cloudflare AI Gateway"]
+  Shape2 --> CF
+  Shape3 --> CF
+
+  CF --> Upstream["Upstream Model Provider"]
+```
+
 ## What it does
 
 - Routes over three URL shapes, selected by config presence, never by comparing a provider name:
@@ -16,9 +40,12 @@ The rule that shapes the whole design, and the gate that enforces it, are in `AG
   and a project-located rpc shape some require (`projectId` + `location`, with `publisher` and
   `rpc`). The project-located shape also switches the request envelope (contents / systemInstruction
   instead of messages) and the response parser.
-- Composes two independent credentials, a gateway-hop token and an optional provider key. Both,
+- Composes two independent credentials: a gateway-hop token and an optional provider key. Both,
   either, or neither is valid. A deployment whose provider key is stored in the gateway sends no
   provider credential at all.
+- Passes custom gateway headers (`headers`) directly through to the gateway hop, both at the client
+  level and per-request. Useful for metadata logging (`cf-aig-metadata`) and cache controls
+  (`cf-aig-cache-ttl`, `cf-aig-skip-cache`).
 - Treats an unfilled `<placeholder>` as unset, and names the value to fix when a required one is
   missing.
 - Redacts the configured model, provider, and resource strings out of upstream error bodies before
@@ -33,14 +60,17 @@ adding any of them would bake in an opinion a consumer may not share.
 
 ## Install
 
-The package is published to the public npm registry, so a plain install works with no token and no
-account setup:
+The package is published to the public npm registry:
 
 ```sh
 pnpm add @charlesgreen/llm-gateway
 ```
 
 ## Usage
+
+### 1. Unified Endpoint (Default)
+
+Most providers use the unified chat completions endpoint:
 
 ```ts
 import { createGatewayClient } from "@charlesgreen/llm-gateway";
@@ -50,27 +80,14 @@ const client = createGatewayClient({
   gatewayId: env.AI_GATEWAY_NAME,
   model: env.AI_MODEL,
   provider: env.LLM_PROVIDER,
-
-  // Set this and the client uses the path-addressed URL shape. Leave it unset
-  // (and leave projectId unset) and it uses the unified endpoint.
-  resourceName: env.AI_PROVIDER_RESOURCE,
-  apiVersion: env.AI_PROVIDER_API_VERSION,
-
-  // Set projectId AND location and the client uses the project-located rpc
-  // shape instead. publisher and rpc are required alongside the pair.
-  // projectId: env.AI_PROVIDER_PROJECT,
-  // location: env.AI_PROVIDER_LOCATION,
-  // publisher: env.AI_PROVIDER_PUBLISHER,
-  // rpc: env.AI_PROVIDER_RPC,
-
   gatewayToken: env.AI_GATEWAY_TOKEN,
 
-  // Model-family quirks are explicit config, never guessed from the model id.
+  // Model-family quirks are explicit config, never guessed from the model id:
   usesMaxCompletionTokens: env.AI_MODEL_USES_MAX_COMPLETION_TOKENS === "true",
   supportsTemperature: env.AI_MODEL_SUPPORTS_TEMPERATURE !== "false",
   maxOutputTokens: Number(env.AI_MAX_OUTPUT_TOKENS) || undefined,
 
-  // Optional: make errors name YOUR variables instead of the config fields.
+  // Optional: make errors name your environment variables instead of config fields:
   varNames: { model: "AI_MODEL", provider: "LLM_PROVIDER" },
 });
 
@@ -82,34 +99,115 @@ const { text, usage } = await client.generate({
 // usage → { inputTokens, outputTokens }
 ```
 
-`generate` returns raw text. Parsing it, with a schema or otherwise, is the caller's job, and that
-boundary is what keeps the client provider-agnostic.
+### 2. Gateway Headers Passthrough
 
-### Bring your own provider key
-
-When the key is not stored in the gateway, send it yourself. The header name and scheme are config,
-so no provider name is needed to decide them:
+Pass Cloudflare AI Gateway metadata or cache controls via `headers` on the client or per-request.
+Request-level headers override client-level headers with matching names:
 
 ```ts
-createGatewayClient({
-  ...base,
-  providerKey: env.PROVIDER_KEY,
-  providerAuth: { header: "api-key" }, // no scheme → the key is sent bare
+const client = createGatewayClient({
+  ...baseConfig,
+  headers: {
+    // Tag all requests from this client in the AI Gateway dashboard:
+    "cf-aig-metadata": JSON.stringify({ environment: "production", service: "worker" }),
+  },
+});
+
+// Per-request cache control and overrides:
+const result = await client.generate({
+  system: "Summarize this ticket.",
+  user: ticketText,
+  headers: {
+    "cf-aig-cache-ttl": "3600",
+    "cf-aig-metadata": JSON.stringify({ ticketId: "12345" }),
+  },
 });
 ```
 
-### Testing
+### 3. Path-Addressed Provider
+
+When a deployment requires resource and model information in the URL path, set `resourceName` and
+`apiVersion`. The client omits the model field from the body and places the resource in the path:
+
+```ts
+const client = createGatewayClient({
+  accountId: env.AI_GATEWAY_ACCOUNT_ID,
+  gatewayId: env.AI_GATEWAY_NAME,
+  provider: env.LLM_PROVIDER,
+  model: env.AI_MODEL,
+
+  // Presence of resourceName routes to the path-addressed shape:
+  resourceName: env.AI_PROVIDER_RESOURCE,
+  apiVersion: env.AI_PROVIDER_API_VERSION,
+});
+```
+
+### 4. Project-Located RPC Provider
+
+When a deployment targets a project-located RPC endpoint, set `projectId`, `location`, `publisher`,
+and `rpc`. The client builds the RPC URL, formats the body as `contents` and `systemInstruction`, and
+reads the response candidates:
+
+```ts
+const client = createGatewayClient({
+  accountId: env.AI_GATEWAY_ACCOUNT_ID,
+  gatewayId: env.AI_GATEWAY_NAME,
+  provider: env.LLM_PROVIDER,
+  model: env.AI_MODEL,
+
+  // Setting projectId and location routes to the project-located RPC shape:
+  projectId: env.AI_PROVIDER_PROJECT,
+  location: env.AI_PROVIDER_LOCATION,
+  publisher: env.AI_PROVIDER_PUBLISHER,
+  rpc: env.AI_PROVIDER_RPC,
+});
+```
+
+### 5. Authentication
+
+The gateway token and provider key are independent:
+
+```ts
+// Scenario A: Stored in Gateway (zero credentials sent by client)
+createGatewayClient({ ...base });
+
+// Scenario B: Gateway token only (Authenticated Gateway)
+createGatewayClient({ ...base, gatewayToken: env.AI_GATEWAY_TOKEN });
+
+// Scenario C: Custom provider key header (bare key, no Bearer scheme)
+createGatewayClient({
+  ...base,
+  providerKey: env.PROVIDER_KEY,
+  providerAuth: { header: "api-key" },
+});
+
+// Scenario D: Both credentials composed
+createGatewayClient({
+  ...base,
+  gatewayToken: env.AI_GATEWAY_TOKEN,
+  providerKey: env.PROVIDER_KEY,
+  providerAuth: { header: "X-Auth-Key", scheme: "Token" },
+});
+```
+
+### 6. Testing
+
+The testing subpath exports `fakeFetch` and `cassetteClient` to test callers without network calls:
 
 ```ts
 import { fakeFetch, cassetteClient } from "@charlesgreen/llm-gateway/testing";
 
-// Assert what the client would send, without a network call.
+// Assert the exact URL, headers, and body the client constructs:
 const fake = fakeFetch();
 await createGatewayClient({ ...cfg, fetchImpl: fake.fetchImpl }).generate(req);
-expect(fake.only().url).toBe(expectedUrl);
 
-// Or replace the client entirely in your own golden tests.
-const model = cassetteClient(recordedResponseText);
+expect(fake.only().url).toBe(expectedUrl);
+expect(fake.headers()["cf-aig-metadata"]).toBeDefined();
+
+// Or return recorded responses directly in unit tests:
+const client = cassetteClient("recorded response text");
+const res = await client.generate(req);
+expect(res.text).toBe("recorded response text");
 ```
 
 ## Contributing
