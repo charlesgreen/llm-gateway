@@ -44,8 +44,22 @@ const MAX_ERROR_BODY_CHARS = 400;
  * Header names are normalized to lower case so the emitted set is deterministic
  * regardless of how a consumer spelled it.
  */
-function buildHeaders(config: GatewayConfig): Record<string, string> {
+function buildHeaders(config: GatewayConfig, req?: GenerateRequest): Record<string, string> {
   const headers: Record<string, string> = { "content-type": "application/json" };
+
+  const merge = (source?: Record<string, string>) => {
+    if (!source) return;
+    for (const [rawKey, rawVal] of Object.entries(source)) {
+      const key = rawKey.trim().toLowerCase();
+      const val = configuredOrUndefined(rawVal);
+      if (key && val !== undefined) {
+        headers[key] = val;
+      }
+    }
+  };
+
+  merge(config.headers);
+  merge(req?.headers);
 
   const gatewayToken = configuredOrUndefined(config.gatewayToken);
   if (gatewayToken) headers["cf-aig-authorization"] = `Bearer ${gatewayToken}`;
@@ -154,7 +168,7 @@ export function createGatewayClient(config: GatewayConfig): ModelClient {
   return {
     async generate(req: GenerateRequest) {
       endpoint ??= resolveEndpoint(config);
-      const headers = buildHeaders(config);
+      const headers = buildHeaders(config, req);
 
       const res = await doFetch(endpoint.url, {
         method: "POST",
